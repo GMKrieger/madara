@@ -109,6 +109,8 @@ impl From<TransactionExecutionError> for SubmitTransactionError {
                 rejected(InvalidProgram, format!("{err:#}"))
             }
             E::StateError(err) => err.into(),
+            // TODO: implement missings conversions
+            _ => unimplemented!("Conversion from TransactionExecutionError not implemented: {err:#}"),
         }
     }
 }
