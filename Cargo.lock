@@ -7129,6 +7129,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "m-cairo-test-contracts"
+version = "0.8.0"
+
+[[package]]
 name = "madara-bootstrapper"
 version = "0.1.0"
 dependencies = [

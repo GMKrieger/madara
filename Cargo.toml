@@ -27,7 +27,7 @@ members = [
   # "madara/crates/primitives/utils",
   # "madara/crates/proc-macros",
   # "madara/crates/tests",
-  # "madara/crates/cairo-test-contracts",
+  "madara/crates/cairo-test-contracts",
 
   # orchestrator
   "orchestrator/crates/orchestrator",
