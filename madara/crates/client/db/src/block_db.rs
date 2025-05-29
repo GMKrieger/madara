@@ -9,7 +9,7 @@ use mp_block::{
     MadaraBlock, MadaraBlockInfo, MadaraBlockInner, MadaraMaybePendingBlock, MadaraMaybePendingBlockInfo,
     MadaraPendingBlock, MadaraPendingBlockInfo,
 };
-use mp_rpc::EmittedEvent;
+use mp_rpc::v0_7_1::EmittedEvent;
 use mp_state_update::StateDiff;
 use starknet_api::core::ChainId;
 use starknet_types_core::felt::Felt;

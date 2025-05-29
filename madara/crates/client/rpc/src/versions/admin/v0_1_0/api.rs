@@ -1,6 +1,7 @@
 use jsonrpsee::core::RpcResult;
 use m_proc_macros::versioned_rpc;
-use mp_rpc::{admin::BroadcastedDeclareTxnV0, ClassAndTxnHash};
+use mp_rpc::admin::BroadcastedDeclareTxnV0;
+use mp_rpc::v0_7_1::ClassAndTxnHash;
 use mp_utils::service::{MadaraServiceId, MadaraServiceStatus};
 use serde::{Deserialize, Serialize};
 

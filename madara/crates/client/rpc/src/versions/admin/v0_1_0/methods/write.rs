@@ -1,6 +1,7 @@
 use crate::{versions::admin::v0_1_0::MadaraWriteRpcApiV0_1_0Server, Starknet, StarknetRpcApiError};
 use jsonrpsee::core::{async_trait, RpcResult};
-use mp_rpc::{admin::BroadcastedDeclareTxnV0, ClassAndTxnHash};
+use mp_rpc::admin::BroadcastedDeclareTxnV0;
+use mp_rpc::v0_7_1::ClassAndTxnHash;
 
 #[async_trait]
 impl MadaraWriteRpcApiV0_1_0Server for Starknet {

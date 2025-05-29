@@ -530,7 +530,7 @@ pub(crate) mod tests {
     use mp_block::header::GasPrices;
     use mp_chain_config::ChainConfig;
     use mp_convert::ToFelt;
-    use mp_rpc::{
+    use mp_rpc::v0_7_1::{
         BroadcastedDeclareTxn, BroadcastedDeclareTxnV3, BroadcastedInvokeTxn, BroadcastedTxn, DaMode, InvokeTxnV3,
         ResourceBounds, ResourceBoundsMapping,
     };

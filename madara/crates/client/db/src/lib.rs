@@ -45,7 +45,7 @@ use mp_block::MadaraBlockInfo;
 use mp_chain_config::ChainConfig;
 use mp_convert::Felt;
 use mp_receipt::EventWithTransactionHash;
-use mp_rpc::EmittedEvent;
+use mp_rpc::v0_7_1::EmittedEvent;
 use mp_utils::service::{MadaraServiceId, PowerOfTwo, Service, ServiceId};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions};
 use rocksdb::{

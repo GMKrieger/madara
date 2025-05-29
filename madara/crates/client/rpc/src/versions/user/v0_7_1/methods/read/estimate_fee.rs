@@ -5,7 +5,7 @@ use crate::versions::user::v0_7_1::methods::trace::trace_transaction::EXECUTION_
 use crate::Starknet;
 use mc_exec::ExecutionContext;
 use mp_block::BlockId;
-use mp_rpc::{BroadcastedTxn, FeeEstimate, SimulationFlagForEstimateFee};
+use mp_rpc::v0_7_1::{BroadcastedTxn, FeeEstimate, SimulationFlagForEstimateFee};
 use mp_transactions::BroadcastedTransactionExt;
 use std::sync::Arc;
 

@@ -1,19 +1,22 @@
-use super::common::*;
-use crate::{DatabaseService, MadaraBackendConfig};
-use mp_chain_config::ChainConfig;
+#[cfg(test)]
+mod open_db_tests {
+    use crate::tests::common::temp_db;
+    use crate::{DatabaseService, MadaraBackendConfig};
+    use mp_chain_config::ChainConfig;
 
-#[tokio::test]
-async fn test_open_db() {
-    temp_db::temp_db().await;
-}
-
-#[tokio::test]
-async fn test_open_different_chain_id() {
-    let temp_dir = tempfile::TempDir::new().unwrap();
-    {
-        let chain_config = std::sync::Arc::new(ChainConfig::starknet_integration());
-        let _db = DatabaseService::new(chain_config, MadaraBackendConfig::new(&temp_dir)).await.unwrap();
+    #[tokio::test]
+    async fn test_open_db() {
+        temp_db::temp_db().await;
     }
-    let chain_config = std::sync::Arc::new(ChainConfig::madara_test());
-    assert!(DatabaseService::new(chain_config, MadaraBackendConfig::new(&temp_dir)).await.is_err());
+
+    #[tokio::test]
+    async fn test_open_different_chain_id() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        {
+            let chain_config = std::sync::Arc::new(ChainConfig::starknet_integration());
+            let _db = DatabaseService::new(chain_config, MadaraBackendConfig::new(&temp_dir)).await.unwrap();
+        }
+        let chain_config = std::sync::Arc::new(ChainConfig::madara_test());
+        assert!(DatabaseService::new(chain_config, MadaraBackendConfig::new(&temp_dir)).await.is_err());
+    }
 }

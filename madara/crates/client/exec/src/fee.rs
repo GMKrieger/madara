@@ -2,7 +2,7 @@ use crate::{ExecutionContext, ExecutionResult};
 use starknet_api::block::{FeeType, GasPriceVector};
 
 impl ExecutionContext {
-    pub fn execution_result_to_fee_estimate(&self, executions_result: &ExecutionResult) -> mp_rpc::FeeEstimate {
+    pub fn execution_result_to_fee_estimate(&self, executions_result: &ExecutionResult) -> mp_rpc::v0_7_1::FeeEstimate {
         let GasPriceVector { l1_gas_price, l1_data_gas_price, .. } =
             self.block_context.block_info().gas_prices.gas_price_vector(&executions_result.fee_type);
         let l1_gas_price = l1_gas_price.get().0;
@@ -21,10 +21,10 @@ impl ExecutionContext {
             .saturating_add(data_gas_consumed.saturating_mul(l1_data_gas_price));
 
         let unit = match executions_result.fee_type {
-            FeeType::Eth => mp_rpc::PriceUnit::Wei,
-            FeeType::Strk => mp_rpc::PriceUnit::Fri,
+            FeeType::Eth => mp_rpc::v0_7_1::PriceUnit::Wei,
+            FeeType::Strk => mp_rpc::v0_7_1::PriceUnit::Fri,
         };
-        mp_rpc::FeeEstimate {
+        mp_rpc::v0_7_1::FeeEstimate {
             gas_consumed: gas_consumed.into(),
             gas_price: l1_gas_price.into(),
             data_gas_consumed: data_gas_consumed.into(),

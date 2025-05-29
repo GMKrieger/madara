@@ -16,9 +16,10 @@ use mc_db::MadaraBackend;
 use mc_exec::{execution::TxInfo, MadaraBackendExecutionExt};
 use mp_class::ConvertedClass;
 use mp_convert::{Felt, ToFelt};
-use mp_rpc::{
-    admin::BroadcastedDeclareTxnV0, AddInvokeTransactionResult, BroadcastedDeclareTxn, BroadcastedDeployAccountTxn,
-    BroadcastedInvokeTxn, BroadcastedTxn, ClassAndTxnHash, ContractAndTxnHash,
+use mp_rpc::admin::BroadcastedDeclareTxnV0;
+use mp_rpc::v0_7_1::{
+    AddInvokeTransactionResult, BroadcastedDeclareTxn, BroadcastedDeployAccountTxn, BroadcastedInvokeTxn,
+    BroadcastedTxn, ClassAndTxnHash, ContractAndTxnHash,
 };
 use mp_transactions::{
     validated::{TxTimestamp, ValidatedMempoolTx},
@@ -109,8 +110,6 @@ impl From<TransactionExecutionError> for SubmitTransactionError {
                 rejected(InvalidProgram, format!("{err:#}"))
             }
             E::StateError(err) => err.into(),
-            // TODO: implement missings conversions
-            _ => unimplemented!("Conversion from TransactionExecutionError not implemented: {err:#}"),
         }
     }
 }

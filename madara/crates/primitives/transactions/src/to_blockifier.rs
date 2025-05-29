@@ -12,7 +12,7 @@ use mp_class::{
     LegacyClassInfo, LegacyConvertedClass, SierraClassInfo, SierraConvertedClass,
 };
 use mp_rpc::admin::BroadcastedDeclareTxnV0;
-use mp_rpc::{BroadcastedDeclareTxn, BroadcastedTxn};
+use mp_rpc::v0_7_1::{BroadcastedDeclareTxn, BroadcastedTxn};
 use starknet_api::contract_class::ClassInfo as ApiClassInfo;
 use starknet_api::transaction::{fields::Fee, TransactionHash};
 use starknet_types_core::felt::Felt;

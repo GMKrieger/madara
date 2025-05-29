@@ -1,5 +1,5 @@
 use crate::MadaraBackend;
-use mp_rpc::EmittedEvent;
+use mp_rpc::v0_7_1::EmittedEvent;
 use starknet_types_core::felt::Felt;
 
 /// EventChannels manages a highly efficient and scalable pub/sub system for events with 16 specific channels

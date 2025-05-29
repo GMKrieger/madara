@@ -4,7 +4,7 @@ use crate::utils::ResultExt;
 use crate::Starknet;
 use mc_exec::{execution_result_to_tx_trace, ExecutionContext};
 use mp_block::BlockId;
-use mp_rpc::{BroadcastedTxn, SimulateTransactionsResult, SimulationFlag};
+use mp_rpc::v0_7_1::{BroadcastedTxn, SimulateTransactionsResult, SimulationFlag};
 use mp_transactions::BroadcastedTransactionExt;
 use std::sync::Arc;
 

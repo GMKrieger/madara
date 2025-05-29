@@ -1,6 +1,6 @@
 use std::fmt;
 
-use mp_rpc::Event;
+use mp_rpc::v0_7_1::Event;
 use starknet_types_core::felt::Felt;
 
 use crate::StarknetRpcApiError;
@@ -161,7 +161,7 @@ pub fn event_match_filter(event: &Event, address: Option<&Felt>, keys: Option<&[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mp_rpc::EventContent;
+    use mp_rpc::v0_7_1::EventContent;
     use rstest::*;
 
     #[fixture]
