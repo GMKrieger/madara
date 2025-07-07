@@ -2878,8 +2878,8 @@ dependencies = [
 name = "bootstrapper-v2"
 version = "0.8.0"
 dependencies = [
+ "anyhow",
  "clap",
- "color-eyre",
  "dotenvy",
  "serde",
  "serde_json",
