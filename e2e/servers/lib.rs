@@ -9,6 +9,10 @@ const CONNECTION_ATTEMPTS: usize = 720;
 const CONNECTION_ATTEMPT_DELAY_MS: u64 = 1000;
 
 impl Server {
+    pub fn new(process: Child, port: u16) -> Self {
+        Self { process: Some(Ok(process)), port: Some(port) }
+    }
+
     pub fn start_server() -> Result<(), Error> {
         // Implementation for starting the server
         unimplemented!()
@@ -78,11 +82,7 @@ pub trait Filesystem {
     // dump db
 
     // load from db
-    pub fn load_db_files(paths: &Vec<Path>) {
-        // Implementation here
-    }
+    pub fn load_db_files(paths: &Vec<Path>);
 
-    pub fn dump_db_files(paths: &Vec<Path>) {
-        // Implementation here
-    }
+    pub fn dump_db_files(paths: &Vec<Path>);
 }
