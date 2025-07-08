@@ -2,7 +2,6 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::Duration;
 use tokio::net::TcpStream;
 use url::Url;
-
 // Custom error type
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
@@ -29,12 +28,7 @@ pub struct ServerConfig {
 
 impl Default for ServerConfig {
     fn default() -> Self {
-        Self {
-            port: 8545,
-            host: "127.0.0.1".to_string(),
-            connection_attempts: 30,
-            connection_delay_ms: 1000,
-        }
+        Self { port: 8545, host: "127.0.0.1".to_string(), connection_attempts: 30, connection_delay_ms: 1000 }
     }
 }
 
@@ -47,25 +41,19 @@ pub struct Server {
 impl Server {
     /// Start a process with the given command and wait for it to be ready
     /// This is the generic method that all services can use
-    pub async fn start_process(
-        mut command: Command,
-        config: ServerConfig,
-    ) -> Result<Self, ServerError> {
+    pub async fn start_process(mut command: Command, config: ServerConfig) -> Result<Self, ServerError> {
         // Set up stdio for the process
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         // Start the process
         let process = command.spawn().map_err(ServerError::StartupFailed)?;
 
-        let mut server = Self {
-            process: Some(process),
-            config,
-        };
+        let mut server = Self { process: Some(process), config };
 
         // Wait for the server to be ready
         server.wait_till_started().await?;
 
-        Ok(server)-
+        Ok(server)
     }
 
     /// Get the endpoint URL
@@ -144,9 +132,7 @@ impl Server {
         if let Some(mut process) = self.process.take() {
             // Try to terminate gracefully first
             let pid = process.id();
-            let kill_result = Command::new("kill")
-                .args(["-s", "TERM", &pid.to_string()])
-                .spawn();
+            let kill_result = Command::new("kill").args(["-s", "TERM", &pid.to_string()]).spawn();
 
             match kill_result {
                 Ok(mut kill_process) => {
@@ -187,13 +173,12 @@ impl Drop for Server {
     }
 }
 
+// // Filesystem
+// pub trait Filesystem {
+//     // dump db
 
-// Filesystem
-pub trait Filesystem {
-    // dump db
+//     // load from db
+//     pub fn load_db_files(paths: &Vec<Path>);
 
-    // load from db
-    pub fn load_db_files(paths: &Vec<Path>);
-
-    pub fn dump_db_files(paths: &Vec<Path>);
-}
+//     pub fn dump_db_files(paths: &Vec<Path>);
+// }

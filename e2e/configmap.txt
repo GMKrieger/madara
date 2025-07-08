@@ -1,9 +1,9 @@
 // TestBuilder
 
 let config = {
-    
-    chaintype : L2 | L3, 
-    
+
+    chaintype : L2 | L3,
+
     madaraconfig : {
         chain_name: "Madara"
         chain_id: "MADARA_DEVNET"
@@ -31,13 +31,13 @@ let config = {
         mempool_tx_max_age: null
 
     }
-    
+
     orchestratorConfig :  {
-        
+
     },
-    
+
     pathfinderConfig :  {
-        
+
     },
     iteration : 3,
 };

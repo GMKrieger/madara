@@ -2,6 +2,9 @@
 // DOCKER SERVER HELPER - For Docker-based services
 // =============================================================================
 
+use crate::servers::server::ServerError;
+use std::process::Command;
+
 #[derive(Debug, thiserror::Error)]
 pub enum DockerError {
     #[error("Docker is not running or not installed")]

@@ -5,12 +5,9 @@ use tokio::time::timeout;
 
 // Import all the services we've created
 use crate::{
-    AnvilService, AnvilConfig, AnvilError,
-    LocalstackService, LocalstackConfig, LocalstackError,
-    MongoService, MongoConfig, MongoError,
-    PathfinderService, PathfinderConfig, PathfinderError,
-    OrchestratorService, OrchestratorConfig, OrchestratorError,
-    Layer, OrchestratorMode,
+    AnvilConfig, AnvilError, AnvilService, Layer, LocalstackConfig, LocalstackError, LocalstackService, MongoConfig,
+    MongoError, MongoService, OrchestratorConfig, OrchestratorError, OrchestratorMode, OrchestratorService,
+    PathfinderConfig, PathfinderError, PathfinderService,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -121,15 +118,13 @@ pub struct SequencerService {
 impl SequencerService {
     pub async fn start(_config: SequencerConfig) -> Result<Self, SetupError> {
         // Placeholder implementation
-        Ok(Self {
-            endpoint: "http://127.0.0.1:9944".to_string(),
-        })
+        Ok(Self { endpoint: "http://127.0.0.1:9944".to_string() })
     }
-    
+
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }
-    
+
     pub fn stop(&mut self) -> Result<(), SetupError> {
         Ok(())
     }
@@ -149,15 +144,13 @@ pub struct BootstrapperService {
 impl BootstrapperService {
     pub async fn start(_config: BootstrapperConfig) -> Result<Self, SetupError> {
         // Placeholder implementation
-        Ok(Self {
-            endpoint: "http://127.0.0.1:9945".to_string(),
-        })
+        Ok(Self { endpoint: "http://127.0.0.1:9945".to_string() })
     }
-    
+
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }
-    
+
     pub fn stop(&mut self) -> Result<(), SetupError> {
         Ok(())
     }
@@ -185,7 +178,7 @@ impl Setup {
     /// Create a new setup instance
     pub fn new(config: SetupConfig) -> Result<Self, SetupError> {
         let context = Arc::new(Context::new(&config));
-        
+
         Ok(Self {
             anvil: None,
             localstack: None,
@@ -218,7 +211,7 @@ impl Setup {
     /// Run the complete setup process
     async fn run_complete_setup(&mut self) -> Result<(), SetupError> {
         println!("🚀 Starting Madara Setup for {:?} layer...", self.config.layer);
-        
+
         // Wrap the entire setup in a timeout
         timeout(self.config.setup_timeout, async {
             self.validate_dependencies().await?;
@@ -239,9 +232,9 @@ impl Setup {
     /// Validate all required dependencies
     async fn validate_dependencies(&self) -> Result<(), SetupError> {
         println!("🔍 Validating dependencies...");
-        
+
         let mut join_set = JoinSet::new();
-        
+
         // Validate Docker
         join_set.spawn(async {
             use crate::DockerServer;
@@ -253,9 +246,7 @@ impl Setup {
 
         // Validate Anvil
         join_set.spawn(async {
-            let result = std::process::Command::new("anvil")
-                .arg("--version")
-                .output();
+            let result = std::process::Command::new("anvil").arg("--version").output();
             if result.is_err() {
                 return Err(SetupError::DependencyFailed("Anvil not found".to_string()));
             }
@@ -274,13 +265,13 @@ impl Setup {
     /// Check if existing databases need to be preserved or cleared
     async fn check_existing_databases(&self) -> Result<(), SetupError> {
         println!("🗄️  Checking existing databases...");
-        
+
         if !self.config.skip_existing_dbs {
             // Create data directory if it doesn't exist
             tokio::fs::create_dir_all(&self.config.data_directory)
                 .await
                 .map_err(|e| SetupError::ContextFailed(format!("Failed to create data directory: {}", e)))?;
-            
+
             println!("📁 Data directory prepared: {}", self.config.data_directory);
         } else {
             println!("⏭️  Skipping database initialization (existing DBs will be used)");
@@ -292,15 +283,12 @@ impl Setup {
     /// Start infrastructure services (Anvil, Localstack, MongoDB)
     async fn start_infrastructure_services(&mut self) -> Result<(), SetupError> {
         println!("🏗️  Starting infrastructure services...");
-        
+
         let mut join_set = JoinSet::new();
         let context = Arc::clone(&self.context);
 
         // Start Anvil
-        let anvil_config = AnvilConfig {
-            port: self.config.anvil_port,
-            ..Default::default()
-        };
+        let anvil_config = AnvilConfig { port: self.config.anvil_port, ..Default::default() };
         join_set.spawn(async move {
             let service = AnvilService::start(anvil_config).await?;
             println!("✅ Anvil started on {}", service.endpoint());
@@ -357,12 +345,14 @@ impl Setup {
     /// Start core services (Pathfinder, Orchestrator, Sequencer, Bootstrapper)
     async fn start_core_services(&mut self) -> Result<(), SetupError> {
         println!("🎯 Starting core services...");
-        
+
         let mut join_set = JoinSet::new();
 
         // Start Pathfinder
         let pathfinder_config = match self.config.layer {
-            Layer::L2 => PathfinderService::madara_devnet_config(&self.config.ethereum_api_key, self.config.sequencer_port),
+            Layer::L2 => {
+                PathfinderService::madara_devnet_config(&self.config.ethereum_api_key, self.config.sequencer_port)
+            }
             Layer::L3 => PathfinderService::sepolia_config(&self.config.ethereum_api_key),
         };
         let mut pathfinder_config = pathfinder_config;
@@ -386,13 +376,14 @@ impl Setup {
             println!("🔧 Running orchestrator setup...");
             let _setup = OrchestratorService::start(orchestrator_setup_config).await?;
             println!("✅ Orchestrator setup completed");
-            
+
             // Then start in run mode
-            let orchestrator_run_config = match Layer::L2 { // This should use self.config.layer but we need to pass it
+            let orchestrator_run_config = match Layer::L2 {
+                // This should use self.config.layer but we need to pass it
                 Layer::L2 => OrchestratorService::run_l2_config(),
                 Layer::L3 => OrchestratorService::run_l3_config(),
             };
-            
+
             let service = OrchestratorService::start(orchestrator_run_config).await?;
             if let Some(endpoint) = service.endpoint() {
                 println!("✅ Orchestrator started on {}", endpoint);
@@ -412,10 +403,8 @@ impl Setup {
         });
 
         // Start Bootstrapper
-        let bootstrapper_config = BootstrapperConfig {
-            port: self.config.bootstrapper_port,
-            layer: self.config.layer.clone(),
-        };
+        let bootstrapper_config =
+            BootstrapperConfig { port: self.config.bootstrapper_port, layer: self.config.layer.clone() };
         join_set.spawn(async move {
             let service = BootstrapperService::start(bootstrapper_config).await?;
             println!("✅ Bootstrapper started on {}", service.endpoint());
@@ -435,7 +424,7 @@ impl Setup {
     /// Wait for all services to be ready and responsive
     async fn wait_for_services_ready(&self) -> Result<(), SetupError> {
         println!("⏳ Waiting for services to be ready...");
-        
+
         let mut join_set = JoinSet::new();
 
         // Wait for MongoDB
@@ -510,7 +499,7 @@ impl Setup {
     /// Run final validation to ensure setup is complete
     async fn run_setup_validation(&self) -> Result<(), SetupError> {
         println!("🔍 Running final validation...");
-        
+
         // Validate that all endpoints are responsive
         let endpoints = vec![
             &self.context.anvil_endpoint,
@@ -524,8 +513,10 @@ impl Setup {
             // Basic connectivity check (you might want more sophisticated validation)
             let url = url::Url::parse(endpoint)
                 .map_err(|e| SetupError::ContextFailed(format!("Invalid endpoint {}: {}", endpoint, e)))?;
-            
-            if let Ok(addr) = format!("{}:{}", url.host_str().unwrap_or("127.0.0.1"), url.port().unwrap_or(80)).parse::<std::net::SocketAddr>() {
+
+            if let Ok(addr) = format!("{}:{}", url.host_str().unwrap_or("127.0.0.1"), url.port().unwrap_or(80))
+                .parse::<std::net::SocketAddr>()
+            {
                 match tokio::net::TcpStream::connect(addr).await {
                     Ok(_) => println!("✅ {} is responsive", endpoint),
                     Err(_) => return Err(SetupError::StartupFailed(format!("Endpoint {} not responsive", endpoint))),
@@ -540,7 +531,7 @@ impl Setup {
     /// Stop all services gracefully
     pub async fn stop_all(&mut self) -> Result<(), SetupError> {
         println!("🛑 Stopping all services...");
-        
+
         // Stop in reverse order of startup
         if let Some(ref mut bootstrapper) = self.bootstrapper {
             bootstrapper.stop()?;
@@ -588,13 +579,13 @@ impl Setup {
 
     /// Check if setup is complete and all services are running
     pub fn is_ready(&self) -> bool {
-        self.anvil.is_some() &&
-        self.localstack.is_some() &&
-        self.mongo.is_some() &&
-        self.pathfinder.is_some() &&
-        self.orchestrator.is_some() &&
-        self.sequencer.is_some() &&
-        self.bootstrapper.is_some()
+        self.anvil.is_some()
+            && self.localstack.is_some()
+            && self.mongo.is_some()
+            && self.pathfinder.is_some()
+            && self.orchestrator.is_some()
+            && self.sequencer.is_some()
+            && self.bootstrapper.is_some()
     }
 
     /// Get setup configuration
@@ -620,7 +611,7 @@ impl Setup {
         let config = SetupConfig {
             layer: Layer::L2,
             ethereum_api_key,
-            wait_for_sync: false, // Skip sync for faster dev setup
+            wait_for_sync: false,                    // Skip sync for faster dev setup
             setup_timeout: Duration::from_secs(180), // 3 minutes
             ..Default::default()
         };
