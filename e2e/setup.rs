@@ -19,6 +19,9 @@ impl Setup {
         //  - JoinSet
         //  - Context
         
+        
+        // managing and ensuring dependencies are met is a critical part of the setup process.
+        
     }
 
     pub fn l2_setup(config : ) {}

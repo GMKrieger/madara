@@ -106,6 +106,14 @@ impl Server {
         self.process.is_some() && self.has_exited().is_none()
     }
 
+    /// Get a free port
+    fn get_free_port() -> u16 {
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .map(|addr| addr.port())
+            .unwrap_or(8080) // Fallback port
+    }
+
     /// Wait until the server is ready to accept connections
     async fn wait_till_started(&mut self) -> Result<(), ServerError> {
         let mut attempts = self.config.connection_attempts;
@@ -119,7 +127,7 @@ impl Server {
                     if let Some(status) = self.has_exited() {
                         return Err(ServerError::ProcessExited(status));
                     }
-                    
+
                     if attempts == 0 {
                         return Err(ServerError::ConnectionTimeout(self.config.connection_attempts));
                     }

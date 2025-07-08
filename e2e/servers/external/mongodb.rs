@@ -118,33 +118,7 @@ impl MongoService {
         Url::parse(&format!("mongodb://{}:{}", self.server.host(), self.server.port())).unwrap()
     }
 
-    /// Get the port number
-    pub fn port(&self) -> u16 {
-        self.server.port()
-    }
-
-    /// Get the database name
-    pub fn database_name(&self) -> Option<&str> {
-        self.config.database_name.as_deref()
-    }
-
-    /// Get the process ID
-    pub fn pid(&self) -> Option<u32> {
-        self.server.pid()
-    }
-
-    /// Check if the process has exited
-    pub fn has_exited(&mut self) -> Option<ExitStatus> {
-        self.server.has_exited()
-    }
-
-    /// Check if the service is running
-    pub fn is_running(&mut self) -> bool {
-        self.server.is_running()
-    }
-
-    /// Stop the MongoDB service
-    pub fn stop(&mut self) -> Result<(), MongoError> {
-        self.server.stop().map_err(|e| MongoError::Docker(DockerError::Server(e)))
+    pub fn server(&self) -> &Server {
+        &self.server
     }
 }

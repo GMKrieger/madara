@@ -138,43 +138,7 @@ impl LocalstackService {
         }
     }
 
-    /// Get the endpoint URL for the Localstack service
-    pub fn endpoint(&self) -> Url {
-        self.server.endpoint()
-    }
-
-    /// Get the port number
-    pub fn port(&self) -> u16 {
-        self.server.port()
-    }
-
-    /// Get the AWS prefix
-    pub fn aws_prefix(&self) -> Option<&str> {
-        self.config.aws_prefix.as_deref()
-    }
-
-    /// Get the process ID
-    pub fn pid(&self) -> Option<u32> {
-        self.server.pid()
-    }
-
-    /// Check if the process has exited
-    pub fn has_exited(&mut self) -> Option<ExitStatus> {
-        self.server.has_exited()
-    }
-
-    /// Check if the service is running
-    pub fn is_running(&mut self) -> bool {
-        self.server.is_running()
-    }
-
-    /// Stop the Localstack service
-    pub fn stop(&mut self) -> Result<(), LocalstackError> {
-        self.server.stop().map_err(|e| LocalstackError::Docker(DockerError::Server(e)))
-    }
-
-    /// Get AWS endpoint URL for a specific service
-    pub fn aws_endpoint(&self, service: &str) -> String {
-        format!("http://{}:{}", self.server.host(), self.server.port())
+    pub fn server(&self) -> &Server {
+        &self.server
     }
 }

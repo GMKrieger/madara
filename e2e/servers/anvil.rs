@@ -1,3 +1,7 @@
+// =============================================================================
+// ANVIL SERVICE - Specific implementation using the generic Server
+// =============================================================================
+
 // Builder for constructing AnvilCMD
 pub struct AnvilCMDBuilder {
     port: u16,
@@ -48,10 +52,6 @@ impl Default for AnvilCMDBuilder {
     }
 }
 
-// =============================================================================
-// ANVIL SERVICE - Specific implementation using the generic Server
-// =============================================================================
-
 #[derive(Debug, thiserror::Error)]
 pub enum AnvilError {
     #[error("Anvil is not installed on the system")]
@@ -72,13 +72,7 @@ pub struct AnvilConfig {
 
 impl Default for AnvilConfig {
     fn default() -> Self {
-        Self {
-            port: 8545,
-            fork_url: None,
-            load_db: None,
-            dump_db: None,
-            host: "127.0.0.1".to_string(),
-        }
+        Self { port: 8545, fork_url: None, load_db: None, dump_db: None, host: "127.0.0.1".to_string() }
     }
 }
 
@@ -98,17 +92,13 @@ impl AnvilService {
 
         // Build the anvil command
         let command = Self::build_anvil_command(&config);
-        
+
         // Create server config
-        let server_config = ServerConfig {
-            port: config.port,
-            host: config.host.clone(),
-            ..Default::default()
-        };
+        let server_config = ServerConfig { port: config.port, host: config.host.clone(), ..Default::default() };
 
         // Start the server using the generic Server::start_process
         let server = Server::start_process(command, server_config).await?;
-        
+
         Ok(Self { server, config })
     }
 
@@ -117,15 +107,15 @@ impl AnvilService {
         let mut command = Command::new("anvil");
         command.arg("--port").arg(config.port.to_string());
         command.arg("--host").arg(&config.host);
-        
+
         if let Some(fork_url) = &config.fork_url {
             command.arg("--fork-url").arg(fork_url);
         }
-        
+
         if let Some(load_db) = &config.load_db {
             command.arg("--load-db").arg(load_db);
         }
-        
+
         if let Some(dump_db) = &config.dump_db {
             command.arg("--dump-db").arg(dump_db);
         }
@@ -135,39 +125,14 @@ impl AnvilService {
 
     /// Check if Anvil is installed on the system
     fn check_anvil_installed() -> bool {
-        Command::new("anvil")
-            .arg("--version")
-            .output()
-            .is_ok()
+        Command::new("anvil").arg("--version").output().is_ok()
     }
 
-    /// Get the endpoint URL for the running Anvil instance
-    pub fn endpoint(&self) -> Url {
-        self.server.endpoint()
+    pub fn server(&self) -> &Server {
+        &self.server
     }
 
-    /// Get the port number
-    pub fn port(&self) -> u16 {
-        self.server.port()
-    }
-
-    /// Get the process ID
-    pub fn pid(&self) -> Option<u32> {
-        self.server.pid()
-    }
-
-    /// Check if the process has exited
-    pub fn has_exited(&mut self) -> Option<ExitStatus> {
-        self.server.has_exited()
-    }
-
-    /// Check if the service is running
-    pub fn is_running(&mut self) -> bool {
-        self.server.is_running()
-    }
-
-    /// Gracefully stop the Anvil service
-    pub fn stop(&mut self) -> Result<(), AnvilError> {
-        self.server.stop().map_err(AnvilError::Server)
+    pub fn dependencies(&self) -> Option<Vec<String>> {
+        Some(vec![])
     }
 }
