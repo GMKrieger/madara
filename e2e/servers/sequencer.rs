@@ -1,3 +1,9 @@
+// has it's own config files to be used!
+// has restarts after bootstrapper setup
+// depends on anvil
+
+
+
 // We write madara cmd builder here!
 // Aim is to create a list of args / envs and supply that to SequencerServer
 pub struct SequencerCMDBuilder {
