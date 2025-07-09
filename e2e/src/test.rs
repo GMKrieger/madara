@@ -1,5 +1,6 @@
 use crate::Setup;
 use crate::SetupConfig;
+use rstest::rstest;
 
 #[rstest::fixture]
 pub(crate) async fn setup() -> SomeSetupType {

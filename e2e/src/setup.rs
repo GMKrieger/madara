@@ -4,11 +4,14 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 // Import all the services we've created
-use crate::{
-    AnvilConfig, AnvilError, AnvilService, Layer, LocalstackConfig, LocalstackError, LocalstackService, MongoConfig,
-    MongoError, MongoService, OrchestratorConfig, OrchestratorError, OrchestratorMode, OrchestratorService,
-    PathfinderConfig, PathfinderError, PathfinderService,
+use crate::servers::anvil::{AnvilConfig, AnvilError, AnvilService};
+use crate::servers::docker::{DockerError, DockerServer};
+use crate::servers::localstack::{LocalstackConfig, LocalstackError, LocalstackService};
+use crate::servers::mongo::{MongoConfig, MongoError, MongoService};
+use crate::servers::orchestrator::{
+    Layer, OrchestratorConfig, OrchestratorError, OrchestratorMode, OrchestratorService,
 };
+use crate::servers::pathfinder::{PathfinderConfig, PathfinderError, PathfinderService};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SetupError {
@@ -237,7 +240,6 @@ impl Setup {
 
         // Validate Docker
         join_set.spawn(async {
-            use crate::DockerServer;
             if !DockerServer::is_docker_running() {
                 return Err(SetupError::DependencyFailed("Docker not running".to_string()));
             }
