@@ -180,6 +180,7 @@ pub struct Setup {
 enum InfrastructureService {
     Anvil(AnvilService),
     Localstack(LocalstackService),
+    Mongo(MongoService),
 }
 
 impl Setup {
@@ -318,18 +319,13 @@ impl Setup {
             Ok(InfrastructureService::Localstack(service))
         });
 
-        // // Start MongoDB
-        // let mongo_config = MongoConfig {
-        //     port: self.config.mongo_port,
-        //     database_name: Some("madara".to_string()),
-        //     data_volume: Some(format!("{}/mongo", self.config.data_directory)),
-        //     ..Default::default()
-        // };
-        // join_set.spawn(async move {
-        //     let service = MongoService::start(mongo_config).await?;
-        //     println!("✅ MongoDB started on port {}", service.port());
-        //     Ok::<MongoService, SetupError>(service)
-        // });
+        // Start MongoDB
+        let mongo_config = MongoConfig { port: self.config.mongo_port, ..Default::default() };
+        join_set.spawn(async move {
+            let service = MongoService::start(mongo_config).await?;
+            println!("✅ MongoDB started on port {}", service.server().port());
+            Ok(InfrastructureService::Mongo(service))
+        });
 
         // Collect results
         let mut services = Vec::new();

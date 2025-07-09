@@ -8,10 +8,6 @@ authors = ["Heemank Verma <heemankv@gmail.com>"]
 name = "e2e"
 path = "src/lib.rs"
 
-[[test]]
-name = "e2e"
-path = "src/lib.rs"
-
 [dependencies]
 
 async-trait = { workspace = true }
