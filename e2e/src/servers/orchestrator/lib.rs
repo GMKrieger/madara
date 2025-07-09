@@ -68,9 +68,9 @@ impl OrchestratorService {
     /// Run in run mode (async, returns immediately with running server)
     async fn run_run_mode(mut config: OrchestratorConfig) -> Result<Self, OrchestratorError> {
         // Get a free port if not specified
-        if config.port.is_none() {
-            config.port = Some(Self::get_free_port());
-        }
+        // if config.port.is_none() {
+        //     config.port = Some(Self::get_free_port());
+        // }
 
         let port = config.port.unwrap();
         let address = format!("127.0.0.1:{}", port);
@@ -340,7 +340,7 @@ impl OrchestratorService {
         &self.config.layer
     }
 
-    pub fn server(&self) -> &Server {
-        &self.server
-    }
+    // pub fn server(&self) -> &Server {
+    //     &self.server.unwrap()
+    // }
 }

@@ -1,21 +1,30 @@
-use crate::Setup;
-use crate::SetupConfig;
+use std::time::Duration;
+
+use crate::setup::{Setup, SetupConfig};
 use rstest::rstest;
+use tokio::time::sleep;
 
-#[rstest::fixture]
-pub(crate) async fn setup() -> SomeSetupType {
-    // based on some config :
+// #[rstest::fixture]
+// pub(crate) async fn setup() -> SomeSetupType {
+//     // based on some config :
 
-    let setup_config = SetupConfig::default();
+//     let setup_config = SetupConfig::default();
 
-    let new_setup = Setup::new(setup_config).await;
+//     let new_setup = Setup::new(setup_config).await;
 
-    new_setup.l2_setup().await;
-}
+//     new_setup.l2_setup().await;
+// }
 
 #[rstest]
 #[tokio::test]
 async fn e2e_test_setup() {
+    let setup_config = SetupConfig::default();
+
+    println!("Running setup");
+    let new_setup = Setup::l2_setup(setup_config).await.is_ok();
+    assert!(new_setup);
+    println!("Ran setup");
+
     // This is going to be the first test that will validate
     // if the system is setting up properly or not
     // System setup :

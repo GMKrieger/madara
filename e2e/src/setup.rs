@@ -177,6 +177,11 @@ pub struct Setup {
     config: SetupConfig,
 }
 
+enum InfrastructureService {
+    Anvil(AnvilService),
+    Localstack(LocalstackService),
+}
+
 impl Setup {
     /// Create a new setup instance
     pub fn new(config: SetupConfig) -> Result<Self, SetupError> {
@@ -200,6 +205,7 @@ impl Setup {
         config.layer = Layer::L2;
         let mut setup = Self::new(config)?;
         setup.run_complete_setup().await?;
+        println!("fd");
         Ok(setup)
     }
 
@@ -220,9 +226,9 @@ impl Setup {
             self.validate_dependencies().await?;
             self.check_existing_databases().await?;
             self.start_infrastructure_services().await?;
-            self.start_core_services().await?;
-            self.wait_for_services_ready().await?;
-            self.run_setup_validation().await?;
+            // self.start_core_services().await?;
+            // self.wait_for_services_ready().await?;
+            // self.run_setup_validation().await?;
             Ok::<(), SetupError>(())
         })
         .await
@@ -241,8 +247,11 @@ impl Setup {
         // Validate Docker
         join_set.spawn(async {
             if !DockerServer::is_docker_running() {
+                println!("Docker is NOT running");
+
                 return Err(SetupError::DependencyFailed("Docker not running".to_string()));
             }
+            println!("Docker is running");
             Ok(())
         });
 
@@ -252,6 +261,7 @@ impl Setup {
             if result.is_err() {
                 return Err(SetupError::DependencyFailed("Anvil not found".to_string()));
             }
+            println!("Anvil is available");
             Ok(())
         });
 
@@ -286,17 +296,16 @@ impl Setup {
     async fn start_infrastructure_services(&mut self) -> Result<(), SetupError> {
         println!("🏗️  Starting infrastructure services...");
 
-        let mut join_set = JoinSet::new();
+        let mut join_set: JoinSet<Result<InfrastructureService, SetupError>> = JoinSet::new();
         let context = Arc::clone(&self.context);
 
         // Start Anvil
         let anvil_config = AnvilConfig { port: self.config.anvil_port, ..Default::default() };
         join_set.spawn(async move {
             let service = AnvilService::start(anvil_config).await?;
-            println!("✅ Anvil started on {}", service.endpoint());
-            Ok::<AnvilService, SetupError>(service)
+            println!("✅ Anvil started on {}", service.server().endpoint());
+            Ok(InfrastructureService::Anvil(service))
         });
-
         // Start Localstack
         let localstack_config = LocalstackConfig {
             port: self.config.localstack_port,
@@ -305,22 +314,22 @@ impl Setup {
         };
         join_set.spawn(async move {
             let service = LocalstackService::start(localstack_config).await?;
-            println!("✅ Localstack started on {}", service.endpoint());
-            Ok::<LocalstackService, SetupError>(service)
+            println!("✅ Localstack started on {}", service.server().endpoint());
+            Ok(InfrastructureService::Localstack(service))
         });
 
-        // Start MongoDB
-        let mongo_config = MongoConfig {
-            port: self.config.mongo_port,
-            database_name: Some("madara".to_string()),
-            data_volume: Some(format!("{}/mongo", self.config.data_directory)),
-            ..Default::default()
-        };
-        join_set.spawn(async move {
-            let service = MongoService::start(mongo_config).await?;
-            println!("✅ MongoDB started on port {}", service.port());
-            Ok::<MongoService, SetupError>(service)
-        });
+        // // Start MongoDB
+        // let mongo_config = MongoConfig {
+        //     port: self.config.mongo_port,
+        //     database_name: Some("madara".to_string()),
+        //     data_volume: Some(format!("{}/mongo", self.config.data_directory)),
+        //     ..Default::default()
+        // };
+        // join_set.spawn(async move {
+        //     let service = MongoService::start(mongo_config).await?;
+        //     println!("✅ MongoDB started on port {}", service.port());
+        //     Ok::<MongoService, SetupError>(service)
+        // });
 
         // Collect results
         let mut services = Vec::new();
@@ -344,251 +353,251 @@ impl Setup {
         Ok(())
     }
 
-    /// Start core services (Pathfinder, Orchestrator, Sequencer, Bootstrapper)
-    async fn start_core_services(&mut self) -> Result<(), SetupError> {
-        println!("🎯 Starting core services...");
+    // /// Start core services (Pathfinder, Orchestrator, Sequencer, Bootstrapper)
+    // async fn start_core_services(&mut self) -> Result<(), SetupError> {
+    //     println!("🎯 Starting core services...");
 
-        let mut join_set = JoinSet::new();
+    //     let mut join_set = JoinSet::new();
 
-        // Start Pathfinder
-        let pathfinder_config = match self.config.layer {
-            Layer::L2 => {
-                PathfinderService::madara_devnet_config(&self.config.ethereum_api_key, self.config.sequencer_port)
-            }
-            Layer::L3 => PathfinderService::sepolia_config(&self.config.ethereum_api_key),
-        };
-        let mut pathfinder_config = pathfinder_config;
-        pathfinder_config.port = self.config.pathfinder_port;
-        pathfinder_config.data_volume = Some(format!("{}/pathfinder", self.config.data_directory));
+    //     // Start Pathfinder
+    //     let pathfinder_config = match self.config.layer {
+    //         Layer::L2 => {
+    //             PathfinderService::madara_devnet_config(&self.config.ethereum_api_key, self.config.sequencer_port)
+    //         }
+    //         Layer::L3 => PathfinderService::sepolia_config(&self.config.ethereum_api_key),
+    //     };
+    //     let mut pathfinder_config = pathfinder_config;
+    //     pathfinder_config.port = self.config.pathfinder_port;
+    //     pathfinder_config.data_volume = Some(format!("{}/pathfinder", self.config.data_directory));
 
-        join_set.spawn(async move {
-            let service = PathfinderService::start(pathfinder_config).await?;
-            println!("✅ Pathfinder started on {}", service.endpoint());
-            Ok::<PathfinderService, SetupError>(service)
-        });
+    //     join_set.spawn(async move {
+    //         let service = PathfinderService::start(pathfinder_config).await?;
+    //         println!("✅ Pathfinder started on {}", service.endpoint());
+    //         Ok::<PathfinderService, SetupError>(service)
+    //     });
 
-        // Start Orchestrator (setup mode first, then run mode)
-        let orchestrator_setup_config = match self.config.layer {
-            Layer::L2 => OrchestratorService::setup_l2_config(),
-            Layer::L3 => OrchestratorService::setup_l3_config(),
-        };
+    //     // Start Orchestrator (setup mode first, then run mode)
+    //     let orchestrator_setup_config = match self.config.layer {
+    //         Layer::L2 => OrchestratorService::setup_l2_config(),
+    //         Layer::L3 => OrchestratorService::setup_l3_config(),
+    //     };
 
-        join_set.spawn(async move {
-            // Run setup first
-            println!("🔧 Running orchestrator setup...");
-            let _setup = OrchestratorService::start(orchestrator_setup_config).await?;
-            println!("✅ Orchestrator setup completed");
+    //     join_set.spawn(async move {
+    //         // Run setup first
+    //         println!("🔧 Running orchestrator setup...");
+    //         let _setup = OrchestratorService::start(orchestrator_setup_config).await?;
+    //         println!("✅ Orchestrator setup completed");
 
-            // Then start in run mode
-            let orchestrator_run_config = match Layer::L2 {
-                // This should use self.config.layer but we need to pass it
-                Layer::L2 => OrchestratorService::run_l2_config(),
-                Layer::L3 => OrchestratorService::run_l3_config(),
-            };
+    //         // Then start in run mode
+    //         let orchestrator_run_config = match Layer::L2 {
+    //             // This should use self.config.layer but we need to pass it
+    //             Layer::L2 => OrchestratorService::run_l2_config(),
+    //             Layer::L3 => OrchestratorService::run_l3_config(),
+    //         };
 
-            let service = OrchestratorService::start(orchestrator_run_config).await?;
-            if let Some(endpoint) = service.endpoint() {
-                println!("✅ Orchestrator started on {}", endpoint);
-            }
-            Ok::<OrchestratorService, SetupError>(service)
-        });
+    //         let service = OrchestratorService::start(orchestrator_run_config).await?;
+    //         if let Some(endpoint) = service.endpoint() {
+    //             println!("✅ Orchestrator started on {}", endpoint);
+    //         }
+    //         Ok::<OrchestratorService, SetupError>(service)
+    //     });
 
-        // Start Sequencer
-        let sequencer_config = SequencerConfig {
-            port: self.config.sequencer_port,
-            data_directory: format!("{}/sequencer", self.config.data_directory),
-        };
-        join_set.spawn(async move {
-            let service = SequencerService::start(sequencer_config).await?;
-            println!("✅ Sequencer started on {}", service.endpoint());
-            Ok::<SequencerService, SetupError>(service)
-        });
+    //     // Start Sequencer
+    //     let sequencer_config = SequencerConfig {
+    //         port: self.config.sequencer_port,
+    //         data_directory: format!("{}/sequencer", self.config.data_directory),
+    //     };
+    //     join_set.spawn(async move {
+    //         let service = SequencerService::start(sequencer_config).await?;
+    //         println!("✅ Sequencer started on {}", service.endpoint());
+    //         Ok::<SequencerService, SetupError>(service)
+    //     });
 
-        // Start Bootstrapper
-        let bootstrapper_config =
-            BootstrapperConfig { port: self.config.bootstrapper_port, layer: self.config.layer.clone() };
-        join_set.spawn(async move {
-            let service = BootstrapperService::start(bootstrapper_config).await?;
-            println!("✅ Bootstrapper started on {}", service.endpoint());
-            Ok::<BootstrapperService, SetupError>(service)
-        });
+    //     // Start Bootstrapper
+    //     let bootstrapper_config =
+    //         BootstrapperConfig { port: self.config.bootstrapper_port, layer: self.config.layer.clone() };
+    //     join_set.spawn(async move {
+    //         let service = BootstrapperService::start(bootstrapper_config).await?;
+    //         println!("✅ Bootstrapper started on {}", service.endpoint());
+    //         Ok::<BootstrapperService, SetupError>(service)
+    //     });
 
-        // Collect results
-        while let Some(result) = join_set.join_next().await {
-            let _service = result.map_err(|e| SetupError::StartupFailed(e.to_string()))??;
-            // Assign services as needed
-        }
+    //     // Collect results
+    //     while let Some(result) = join_set.join_next().await {
+    //         let _service = result.map_err(|e| SetupError::StartupFailed(e.to_string()))??;
+    //         // Assign services as needed
+    //     }
 
-        println!("✅ Core services started");
-        Ok(())
-    }
+    //     println!("✅ Core services started");
+    //     Ok(())
+    // }
 
-    /// Wait for all services to be ready and responsive
-    async fn wait_for_services_ready(&self) -> Result<(), SetupError> {
-        println!("⏳ Waiting for services to be ready...");
+    // /// Wait for all services to be ready and responsive
+    // async fn wait_for_services_ready(&self) -> Result<(), SetupError> {
+    //     println!("⏳ Waiting for services to be ready...");
 
-        let mut join_set = JoinSet::new();
+    //     let mut join_set = JoinSet::new();
 
-        // Wait for MongoDB
-        if let Some(ref mongo) = self.mongo {
-            join_set.spawn(async {
-                let mut attempts = 30;
-                loop {
-                    if mongo.validate_connection().await.is_ok() {
-                        break;
-                    }
-                    if attempts == 0 {
-                        return Err(SetupError::Timeout("MongoDB not ready".to_string()));
-                    }
-                    attempts -= 1;
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                }
-                println!("✅ MongoDB is ready");
-                Ok(())
-            });
-        }
+    //     // Wait for MongoDB
+    //     if let Some(ref mongo) = self.mongo {
+    //         join_set.spawn(async {
+    //             let mut attempts = 30;
+    //             loop {
+    //                 if mongo.validate_connection().await.is_ok() {
+    //                     break;
+    //                 }
+    //                 if attempts == 0 {
+    //                     return Err(SetupError::Timeout("MongoDB not ready".to_string()));
+    //                 }
+    //                 attempts -= 1;
+    //                 tokio::time::sleep(Duration::from_secs(2)).await;
+    //             }
+    //             println!("✅ MongoDB is ready");
+    //             Ok(())
+    //         });
+    //     }
 
-        // Wait for Localstack
-        if let Some(ref localstack) = self.localstack {
-            let aws_prefix = format!("{:?}", self.config.layer).to_lowercase();
-            join_set.spawn(async move {
-                let mut attempts = 30;
-                loop {
-                    if localstack.validate_resources(&aws_prefix).await.is_ok() {
-                        break;
-                    }
-                    if attempts == 0 {
-                        return Err(SetupError::Timeout("Localstack not ready".to_string()));
-                    }
-                    attempts -= 1;
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                }
-                println!("✅ Localstack is ready");
-                Ok(())
-            });
-        }
+    //     // Wait for Localstack
+    //     if let Some(ref localstack) = self.localstack {
+    //         let aws_prefix = format!("{:?}", self.config.layer).to_lowercase();
+    //         join_set.spawn(async move {
+    //             let mut attempts = 30;
+    //             loop {
+    //                 if localstack.validate_resources(&aws_prefix).await.is_ok() {
+    //                     break;
+    //                 }
+    //                 if attempts == 0 {
+    //                     return Err(SetupError::Timeout("Localstack not ready".to_string()));
+    //                 }
+    //                 attempts -= 1;
+    //                 tokio::time::sleep(Duration::from_secs(2)).await;
+    //             }
+    //             println!("✅ Localstack is ready");
+    //             Ok(())
+    //         });
+    //     }
 
-        // Wait for Pathfinder (if sync is required)
-        if self.config.wait_for_sync {
-            if let Some(ref pathfinder) = self.pathfinder {
-                join_set.spawn(async {
-                    let mut attempts = 60; // Longer wait for sync
-                    loop {
-                        if pathfinder.validate_connection().await.is_ok() {
-                            break;
-                        }
-                        if attempts == 0 {
-                            return Err(SetupError::Timeout("Pathfinder not ready".to_string()));
-                        }
-                        attempts -= 1;
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                    }
-                    println!("✅ Pathfinder is ready");
-                    Ok(())
-                });
-            }
-        }
+    //     // Wait for Pathfinder (if sync is required)
+    //     if self.config.wait_for_sync {
+    //         if let Some(ref pathfinder) = self.pathfinder {
+    //             join_set.spawn(async {
+    //                 let mut attempts = 60; // Longer wait for sync
+    //                 loop {
+    //                     if pathfinder.validate_connection().await.is_ok() {
+    //                         break;
+    //                     }
+    //                     if attempts == 0 {
+    //                         return Err(SetupError::Timeout("Pathfinder not ready".to_string()));
+    //                     }
+    //                     attempts -= 1;
+    //                     tokio::time::sleep(Duration::from_secs(5)).await;
+    //                 }
+    //                 println!("✅ Pathfinder is ready");
+    //                 Ok(())
+    //             });
+    //         }
+    //     }
 
-        // Wait for all services
-        while let Some(result) = join_set.join_next().await {
-            result.map_err(|e| SetupError::StartupFailed(e.to_string()))??;
-        }
+    //     // Wait for all services
+    //     while let Some(result) = join_set.join_next().await {
+    //         result.map_err(|e| SetupError::StartupFailed(e.to_string()))??;
+    //     }
 
-        println!("✅ All services are ready");
-        Ok(())
-    }
+    //     println!("✅ All services are ready");
+    //     Ok(())
+    // }
 
-    /// Run final validation to ensure setup is complete
-    async fn run_setup_validation(&self) -> Result<(), SetupError> {
-        println!("🔍 Running final validation...");
+    // /// Run final validation to ensure setup is complete
+    // async fn run_setup_validation(&self) -> Result<(), SetupError> {
+    //     println!("🔍 Running final validation...");
 
-        // Validate that all endpoints are responsive
-        let endpoints = vec![
-            &self.context.anvil_endpoint,
-            &self.context.localstack_endpoint,
-            &self.context.pathfinder_endpoint,
-            &self.context.sequencer_endpoint,
-            &self.context.bootstrapper_endpoint,
-        ];
+    //     // Validate that all endpoints are responsive
+    //     let endpoints = vec![
+    //         &self.context.anvil_endpoint,
+    //         &self.context.localstack_endpoint,
+    //         &self.context.pathfinder_endpoint,
+    //         &self.context.sequencer_endpoint,
+    //         &self.context.bootstrapper_endpoint,
+    //     ];
 
-        for endpoint in endpoints {
-            // Basic connectivity check (you might want more sophisticated validation)
-            let url = url::Url::parse(endpoint)
-                .map_err(|e| SetupError::ContextFailed(format!("Invalid endpoint {}: {}", endpoint, e)))?;
+    //     for endpoint in endpoints {
+    //         // Basic connectivity check (you might want more sophisticated validation)
+    //         let url = url::Url::parse(endpoint)
+    //             .map_err(|e| SetupError::ContextFailed(format!("Invalid endpoint {}: {}", endpoint, e)))?;
 
-            if let Ok(addr) = format!("{}:{}", url.host_str().unwrap_or("127.0.0.1"), url.port().unwrap_or(80))
-                .parse::<std::net::SocketAddr>()
-            {
-                match tokio::net::TcpStream::connect(addr).await {
-                    Ok(_) => println!("✅ {} is responsive", endpoint),
-                    Err(_) => return Err(SetupError::StartupFailed(format!("Endpoint {} not responsive", endpoint))),
-                }
-            }
-        }
+    //         if let Ok(addr) = format!("{}:{}", url.host_str().unwrap_or("127.0.0.1"), url.port().unwrap_or(80))
+    //             .parse::<std::net::SocketAddr>()
+    //         {
+    //             match tokio::net::TcpStream::connect(addr).await {
+    //                 Ok(_) => println!("✅ {} is responsive", endpoint),
+    //                 Err(_) => return Err(SetupError::StartupFailed(format!("Endpoint {} not responsive", endpoint))),
+    //             }
+    //         }
+    //     }
 
-        println!("✅ All validations passed");
-        Ok(())
-    }
+    //     println!("✅ All validations passed");
+    //     Ok(())
+    // }
 
-    /// Stop all services gracefully
-    pub async fn stop_all(&mut self) -> Result<(), SetupError> {
-        println!("🛑 Stopping all services...");
+    // /// Stop all services gracefully
+    // pub async fn stop_all(&mut self) -> Result<(), SetupError> {
+    //     println!("🛑 Stopping all services...");
 
-        // Stop in reverse order of startup
-        if let Some(ref mut bootstrapper) = self.bootstrapper {
-            bootstrapper.stop()?;
-            println!("🛑 Bootstrapper stopped");
-        }
+    //     // Stop in reverse order of startup
+    //     if let Some(ref mut bootstrapper) = self.bootstrapper {
+    //         bootstrapper.stop()?;
+    //         println!("🛑 Bootstrapper stopped");
+    //     }
 
-        if let Some(ref mut sequencer) = self.sequencer {
-            sequencer.stop()?;
-            println!("🛑 Sequencer stopped");
-        }
+    //     if let Some(ref mut sequencer) = self.sequencer {
+    //         sequencer.stop()?;
+    //         println!("🛑 Sequencer stopped");
+    //     }
 
-        if let Some(ref mut orchestrator) = self.orchestrator {
-            orchestrator.stop()?;
-            println!("🛑 Orchestrator stopped");
-        }
+    //     if let Some(ref mut orchestrator) = self.orchestrator {
+    //         orchestrator.stop()?;
+    //         println!("🛑 Orchestrator stopped");
+    //     }
 
-        if let Some(ref mut pathfinder) = self.pathfinder {
-            pathfinder.stop()?;
-            println!("🛑 Pathfinder stopped");
-        }
+    //     if let Some(ref mut pathfinder) = self.pathfinder {
+    //         pathfinder.stop()?;
+    //         println!("🛑 Pathfinder stopped");
+    //     }
 
-        if let Some(ref mut mongo) = self.mongo {
-            mongo.stop()?;
-            println!("🛑 MongoDB stopped");
-        }
+    //     if let Some(ref mut mongo) = self.mongo {
+    //         mongo.stop()?;
+    //         println!("🛑 MongoDB stopped");
+    //     }
 
-        if let Some(ref mut localstack) = self.localstack {
-            localstack.stop()?;
-            println!("🛑 Localstack stopped");
-        }
+    //     if let Some(ref mut localstack) = self.localstack {
+    //         localstack.stop()?;
+    //         println!("🛑 Localstack stopped");
+    //     }
 
-        if let Some(ref mut anvil) = self.anvil {
-            anvil.stop()?;
-            println!("🛑 Anvil stopped");
-        }
+    //     if let Some(ref mut anvil) = self.anvil {
+    //         anvil.stop()?;
+    //         println!("🛑 Anvil stopped");
+    //     }
 
-        println!("✅ All services stopped");
-        Ok(())
-    }
+    //     println!("✅ All services stopped");
+    //     Ok(())
+    // }
 
-    /// Get the current context
-    pub fn context(&self) -> Arc<Context> {
-        Arc::clone(&self.context)
-    }
+    // /// Get the current context
+    // pub fn context(&self) -> Arc<Context> {
+    //     Arc::clone(&self.context)
+    // }
 
-    /// Check if setup is complete and all services are running
-    pub fn is_ready(&self) -> bool {
-        self.anvil.is_some()
-            && self.localstack.is_some()
-            && self.mongo.is_some()
-            && self.pathfinder.is_some()
-            && self.orchestrator.is_some()
-            && self.sequencer.is_some()
-            && self.bootstrapper.is_some()
-    }
+    // /// Check if setup is complete and all services are running
+    // pub fn is_ready(&self) -> bool {
+    //     self.anvil.is_some()
+    //         && self.localstack.is_some()
+    //         && self.mongo.is_some()
+    //         && self.pathfinder.is_some()
+    //         && self.orchestrator.is_some()
+    //         && self.sequencer.is_some()
+    //         && self.bootstrapper.is_some()
+    // }
 
     /// Get setup configuration
     pub fn config(&self) -> &SetupConfig {
@@ -596,15 +605,15 @@ impl Setup {
     }
 }
 
-impl Drop for Setup {
-    fn drop(&mut self) {
-        // Attempt graceful shutdown on drop
-        let rt = tokio::runtime::Runtime::new();
-        if let Ok(rt) = rt {
-            let _ = rt.block_on(self.stop_all());
-        }
-    }
-}
+// impl Drop for Setup {
+//     fn drop(&mut self) {
+//         // Attempt graceful shutdown on drop
+//         let rt = tokio::runtime::Runtime::new();
+//         if let Ok(rt) = rt {
+//             let _ = rt.block_on(self.stop_all());
+//         }
+//     }
+// }
 
 // Helper functions for creating common setups
 impl Setup {

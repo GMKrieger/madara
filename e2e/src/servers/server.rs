@@ -48,6 +48,7 @@ impl Server {
         // Start the process
         let process = command.spawn().map_err(ServerError::StartupFailed)?;
 
+        println!("Starting container with command : {:?}", command);
         let mut server = Self { process: Some(process), config };
 
         // Wait for the server to be ready
@@ -104,6 +105,7 @@ impl Server {
 
     /// Wait until the server is ready to accept connections
     async fn wait_till_started(&mut self) -> Result<(), ServerError> {
+        println!("Waiting for server to start...");
         let mut attempts = self.config.connection_attempts;
         let addr = format!("{}:{}", self.config.host, self.config.port);
 
