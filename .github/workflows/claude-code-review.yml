@@ -15,14 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       # Identify the files and lines changed in this PR
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v44
         with:
-          since_last_remote_commit: "true"
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Claude PR Review
         uses: anthropics/claude-code-action@beta
@@ -58,7 +59,7 @@ jobs:
 
             Suggestions for optimization should only be made when they are significant and do not come at the expense of code readability.
 
-            Review ONLY these files:
+            Review ONLY these files that have been changed in this PR (comparing all commits on the branch against the base branch):
             ${{ steps.changed-files.outputs.all_changed_files }}
 
             • Start by calling `mcp__github__create_pending_pull_request_review` with:
