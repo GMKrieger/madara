@@ -45,7 +45,7 @@ impl Default for PathfinderConfig {
             monitor_port: DEFAULT_PATHFINDER_MONITOR_PORT,
             image: DEFAULT_PATHFINDER_IMAGE.to_string(),
             container_name: DEFAULT_PATHFINDER_CONTAINER_NAME.to_string(),
-            ethereum_url: "https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY".to_string(),
+            ethereum_url: "https://ethereum-sepolia-rpc.publicnode.com".to_string(),
             data_directory: "/var/pathfinder".to_string(),
             rpc_root_version: "v07".to_string(),
             network: "custom".to_string(),

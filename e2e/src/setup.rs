@@ -1,12 +1,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
 // Import all the services we've created
 use crate::servers::anvil::{AnvilConfig, AnvilError, AnvilService};
 use crate::servers::docker::{DockerError, DockerServer};
 use crate::servers::localstack::{LocalstackConfig, LocalstackError, LocalstackService};
+use crate::servers::madara::{MadaraCMD, MadaraConfig, MadaraError, MadaraService};
 use crate::servers::mongo::{MongoConfig, MongoError, MongoService};
 use crate::servers::orchestrator::{
     Layer, OrchestratorConfig, OrchestratorError, OrchestratorMode, OrchestratorService,
@@ -25,6 +26,8 @@ pub enum SetupError {
     Pathfinder(#[from] PathfinderError),
     #[error("Orchestrator service error: {0}")]
     Orchestrator(#[from] OrchestratorError),
+    #[error("Madara service error: {0}")]
+    Madara(#[from] MadaraError),
     #[error("Bootstrapper service error: {0}")]
     Bootstrapper(String),
     #[error("Sequencer service error: {0}")]
@@ -48,7 +51,7 @@ pub struct SetupConfig {
     pub mongo_port: u16,
     pub pathfinder_port: u16,
     pub orchestrator_port: Option<u16>,
-    pub sequencer_port: u16,
+    pub madara_port: u16,
     pub bootstrapper_port: u16,
     pub data_directory: String,
     pub setup_timeout: Duration,
@@ -66,7 +69,7 @@ impl Default for SetupConfig {
             mongo_port: 27017,
             pathfinder_port: 9545,
             orchestrator_port: None,
-            sequencer_port: 9944,
+            madara_port: 9944,
             bootstrapper_port: 9945,
             data_directory: "/tmp/madara-setup".to_string(),
             setup_timeout: Duration::from_secs(300), // 5 minutes
@@ -99,7 +102,7 @@ impl Context {
             mongo_connection_string: format!("mongodb://127.0.0.1:{}/madara", config.mongo_port),
             pathfinder_endpoint: format!("http://127.0.0.1:{}", config.pathfinder_port),
             orchestrator_endpoint: config.orchestrator_port.map(|port| format!("http://127.0.0.1:{}", port)),
-            sequencer_endpoint: format!("http://127.0.0.1:{}", config.sequencer_port),
+            sequencer_endpoint: format!("http://127.0.0.1:{}", config.madara_port),
             bootstrapper_endpoint: format!("http://127.0.0.1:{}", config.bootstrapper_port),
             data_directory: config.data_directory.clone(),
             setup_start_time: std::time::Instant::now(),
@@ -171,16 +174,17 @@ pub struct Setup {
     pub mongo: Option<MongoService>,
     pub pathfinder: Option<PathfinderService>,
     pub orchestrator: Option<OrchestratorService>,
-    pub sequencer: Option<SequencerService>,
+    pub madara: Option<MadaraService>,
     pub bootstrapper: Option<BootstrapperService>,
     pub context: Arc<Context>,
     config: SetupConfig,
 }
 
-enum InfrastructureService {
+enum Services {
     Anvil(AnvilService),
     Localstack(LocalstackService),
     Mongo(MongoService),
+    Pathfinder(PathfinderService),
 }
 
 impl Setup {
@@ -194,7 +198,7 @@ impl Setup {
             mongo: None,
             pathfinder: None,
             orchestrator: None,
-            sequencer: None,
+            madara: None,
             bootstrapper: None,
             context,
             config,
@@ -226,8 +230,8 @@ impl Setup {
         timeout(self.config.setup_timeout, async {
             self.validate_dependencies().await?;
             self.check_existing_databases().await?;
-            self.start_infrastructure_services().await?;
-            // self.start_core_services().await?;
+            // self.start_infrastructure_services().await?;
+            self.start_core_services().await?;
             // self.wait_for_services_ready().await?;
             // self.run_setup_validation().await?;
             Ok::<(), SetupError>(())
@@ -297,136 +301,99 @@ impl Setup {
     async fn start_infrastructure_services(&mut self) -> Result<(), SetupError> {
         println!("🏗️  Starting infrastructure services...");
 
-        let mut join_set: JoinSet<Result<InfrastructureService, SetupError>> = JoinSet::new();
-        let context = Arc::clone(&self.context);
+        // 🔑 KEY: Capture values first to avoid borrowing issues
+        let localstack_port = self.config.localstack_port;
+        let layer = self.config.layer.clone();
+        let mongo_port = self.config.mongo_port;
 
-        // Start Anvil
-        let anvil_config = AnvilConfig { port: self.config.anvil_port, ..Default::default() };
-        join_set.spawn(async move {
-            let service = AnvilService::start(anvil_config).await?;
-            println!("✅ Anvil started on {}", service.server().endpoint());
-            Ok(InfrastructureService::Anvil(service))
-        });
-        // Start Localstack
-        let localstack_config = LocalstackConfig {
-            port: self.config.localstack_port,
-            aws_prefix: Some(format!("{:?}", self.config.layer).to_lowercase()),
-            ..Default::default()
-        };
-        join_set.spawn(async move {
+        // Create async closures that DON'T borrow self
+        let start_localstack = async move {
+            let localstack_config = LocalstackConfig {
+                port: localstack_port,
+                aws_prefix: Some(format!("{:?}", layer).to_lowercase()),
+                ..Default::default()
+            };
+
             let service = LocalstackService::start(localstack_config).await?;
             println!("✅ Localstack started on {}", service.server().endpoint());
-            Ok(InfrastructureService::Localstack(service))
-        });
+            Ok::<LocalstackService, SetupError>(service)
+        };
 
-        // Start MongoDB
-        let mongo_config = MongoConfig { port: self.config.mongo_port, ..Default::default() };
-        join_set.spawn(async move {
+        let start_mongo = async move {
+            let mongo_config = MongoConfig { port: mongo_port, ..Default::default() };
+
             let service = MongoService::start(mongo_config).await?;
             println!("✅ MongoDB started on port {}", service.server().port());
-            Ok(InfrastructureService::Mongo(service))
-        });
+            Ok::<MongoService, SetupError>(service)
+        };
 
-        // Collect results
-        let mut services = Vec::new();
-        while let Some(result) = join_set.join_next().await {
-            let service = result.map_err(|e| SetupError::StartupFailed(e.to_string()))??;
-            services.push(service);
-        }
+        // TODO: Atlantic get's added here later!
 
-        // Assign services (this is a bit clunky but works with the async context)
-        for service in services {
-            match service {
-                s if std::any::type_name_of_val(&s).contains("AnvilService") => {
-                    // This is a simplified assignment - in real code you'd use proper type handling
-                    // self.anvil = Some(s);
-                }
-                _ => {} // Handle other service types
-            }
-        }
+        // 🚀 These run in PARALLEL!
+        let (localstack_service, mongo_service) = tokio::try_join!(start_localstack, start_mongo)?;
+
+        // Assign the services
+        self.localstack = Some(localstack_service);
+        self.mongo = Some(mongo_service);
 
         println!("✅ Infrastructure services started");
         Ok(())
     }
 
-    // /// Start core services (Pathfinder, Orchestrator, Sequencer, Bootstrapper)
-    // async fn start_core_services(&mut self) -> Result<(), SetupError> {
-    //     println!("🎯 Starting core services...");
+    /// Start core services (Pathfinder, Orchestrator, Sequencer, Bootstrapper)
+    async fn start_core_services(&mut self) -> Result<(), SetupError> {
+        println!("🎯 Starting core services...");
 
-    //     let mut join_set = JoinSet::new();
+        // 🔑 KEY: Capture values first to avoid borrowing issues
+        let anvil_port = self.config.anvil_port;
+        let pathfinder_port = self.config.pathfinder_port;
+        let data_directory = self.config.data_directory.clone();
+        let madara_port = self.config.madara_port;
 
-    //     // Start Pathfinder
-    //     let pathfinder_config = match self.config.layer {
-    //         Layer::L2 => {
-    //             PathfinderService::madara_devnet_config(&self.config.ethereum_api_key, self.config.sequencer_port)
-    //         }
-    //         Layer::L3 => PathfinderService::sepolia_config(&self.config.ethereum_api_key),
-    //     };
-    //     let mut pathfinder_config = pathfinder_config;
-    //     pathfinder_config.port = self.config.pathfinder_port;
-    //     pathfinder_config.data_volume = Some(format!("{}/pathfinder", self.config.data_directory));
+        // Create async closures that DON'T borrow self
+        let start_anvil = async move {
+            let anvil_config = AnvilConfig { port: anvil_port, ..Default::default() };
 
-    //     join_set.spawn(async move {
-    //         let service = PathfinderService::start(pathfinder_config).await?;
-    //         println!("✅ Pathfinder started on {}", service.endpoint());
-    //         Ok::<PathfinderService, SetupError>(service)
-    //     });
+            let service = AnvilService::start(anvil_config).await?;
+            println!("✅ Anvil started on {}", service.server().endpoint());
+            Ok::<AnvilService, SetupError>(service)
+        };
 
-    //     // Start Orchestrator (setup mode first, then run mode)
-    //     let orchestrator_setup_config = match self.config.layer {
-    //         Layer::L2 => OrchestratorService::setup_l2_config(),
-    //         Layer::L3 => OrchestratorService::setup_l3_config(),
-    //     };
+        // Start Madara
+        let start_madara = async move {
+            let mut madara_config = MadaraConfig::default();
+            madara_config.rpc_port = madara_port;
 
-    //     join_set.spawn(async move {
-    //         // Run setup first
-    //         println!("🔧 Running orchestrator setup...");
-    //         let _setup = OrchestratorService::start(orchestrator_setup_config).await?;
-    //         println!("✅ Orchestrator setup completed");
+            let service = MadaraService::start(madara_config).await?;
+            println!("✅ Madara started on {}", service.endpoint());
+            Ok::<MadaraService, SetupError>(service)
+        };
 
-    //         // Then start in run mode
-    //         let orchestrator_run_config = match Layer::L2 {
-    //             // This should use self.config.layer but we need to pass it
-    //             Layer::L2 => OrchestratorService::run_l2_config(),
-    //             Layer::L3 => OrchestratorService::run_l3_config(),
-    //         };
+        // // Pathfinder should start only after madara is ready!
+        // let start_pathfinder = async move {
+        //     let mut pathfinder_config = PathfinderConfig::default();
+        //     pathfinder_config.port = pathfinder_port;
+        //     pathfinder_config.data_volume = Some(format!("{}/pathfinder", data_directory));
 
-    //         let service = OrchestratorService::start(orchestrator_run_config).await?;
-    //         if let Some(endpoint) = service.endpoint() {
-    //             println!("✅ Orchestrator started on {}", endpoint);
-    //         }
-    //         Ok::<OrchestratorService, SetupError>(service)
-    //     });
+        //     let service = PathfinderService::start(pathfinder_config).await?;
+        //     println!("✅ Pathfinder started on {}", service.endpoint());
+        //     Ok::<PathfinderService, SetupError>(service)
+        // };
 
-    //     // Start Sequencer
-    //     let sequencer_config = SequencerConfig {
-    //         port: self.config.sequencer_port,
-    //         data_directory: format!("{}/sequencer", self.config.data_directory),
-    //     };
-    //     join_set.spawn(async move {
-    //         let service = SequencerService::start(sequencer_config).await?;
-    //         println!("✅ Sequencer started on {}", service.endpoint());
-    //         Ok::<SequencerService, SetupError>(service)
-    //     });
 
-    //     // Start Bootstrapper
-    //     let bootstrapper_config =
-    //         BootstrapperConfig { port: self.config.bootstrapper_port, layer: self.config.layer.clone() };
-    //     join_set.spawn(async move {
-    //         let service = BootstrapperService::start(bootstrapper_config).await?;
-    //         println!("✅ Bootstrapper started on {}", service.endpoint());
-    //         Ok::<BootstrapperService, SetupError>(service)
-    //     });
+        // 🚀 These run in PARALLEL!
+        let (anvil_service, madara_service) = tokio::try_join!(start_anvil, start_madara)?;
 
-    //     // Collect results
-    //     while let Some(result) = join_set.join_next().await {
-    //         let _service = result.map_err(|e| SetupError::StartupFailed(e.to_string()))??;
-    //         // Assign services as needed
-    //     }
+        // Assign the services
+        self.anvil = Some(anvil_service);
+        self.madara = Some(madara_service);
+        // self.pathfinder = Some(pathfinder_service);
 
-    //     println!("✅ Core services started");
-    //     Ok(())
-    // }
+        sleep(Duration::from_secs(100)).await;
+        
+        println!("✅ Core services started");
+        Ok(())
+    }
 
     // /// Wait for all services to be ready and responsive
     // async fn wait_for_services_ready(&self) -> Result<(), SetupError> {
